@@ -124,6 +124,24 @@
   .oil-calc-label{font-size:11px;color:var(--text-muted);}
   .oil-calc-val{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:var(--orange);}
   .no-vehicle-msg{text-align:center;padding:20px;color:var(--text-dim);font-size:13px;}
+
+  /* 車検カード */
+  .insp-card{border-radius:12px;padding:13px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .insp-card.insp-safe{background:rgba(46,204,113,.07);border:1.5px solid rgba(46,204,113,.3);}
+  .insp-card.insp-warn{background:rgba(243,156,18,.07);border:1.5px solid rgba(243,156,18,.35);}
+  .insp-card.insp-err{background:rgba(231,76,60,.07);border:1.5px solid rgba(231,76,60,.35);}
+  .insp-card.insp-none{background:var(--dark3);border:1.5px solid var(--border);}
+  .insp-card-left .insp-label{font-size:10px;color:var(--text-muted);letter-spacing:.08em;font-family:'DM Mono',monospace;margin-bottom:4px;}
+  .insp-card-left .insp-date{font-family:'DM Mono',monospace;font-size:16px;font-weight:500;}
+  .insp-card-left .insp-date.insp-safe{color:var(--green);}
+  .insp-card-left .insp-date.insp-warn{color:var(--yellow);}
+  .insp-card-left .insp-date.insp-err{color:var(--red);}
+  .insp-card-left .insp-date.insp-none{color:var(--text-dim);}
+  .insp-days{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;text-align:right;}
+  .insp-days.insp-safe{color:var(--green);}
+  .insp-days.insp-warn{color:var(--yellow);}
+  .insp-days.insp-err{color:var(--red);}
+  .insp-days.insp-none{color:var(--text-dim);font-size:14px;}
 </style>
 </head>
 <body>
@@ -263,6 +281,18 @@
 
   <div id="check-list"></div>
 
+  <div class="section-label">車検有効期限</div>
+
+  <div id="insp-card-area">
+    <div class="insp-card insp-none">
+      <div class="insp-card-left">
+        <div class="insp-label">VEHICLE INSPECTION</div>
+        <div class="insp-date insp-none">車両を選択してください</div>
+      </div>
+      <div class="insp-days insp-none">—</div>
+    </div>
+  </div>
+
   <div class="section-label">エンジンオイル・フィルター交換</div>
 
   <!-- 車両未選択時メッセージ -->
@@ -391,6 +421,7 @@ function onVehicleChange() {
   document.getElementById('oil-card-wrap').style.display = 'block';
 
   renderOilCard(vehicle);
+  renderInspCard(vehicle);
 
   // GASから最新メーターを取得して前回メーター欄に自動入力
   fetchLatestMeter(vehicle);
@@ -439,6 +470,70 @@ function clearPrevMeter() {
   if (statusEl) statusEl.textContent = '';
   document.getElementById('calc-val').textContent = '— km';
   document.getElementById('calc-val').className   = 'calc-val';
+  // 車検カードをリセット
+  renderInspCard(null);
+}
+
+// ============================================================
+// 車検有効期限カード表示
+// ============================================================
+function renderInspCard(vehicle) {
+  const area = document.getElementById('insp-card-area');
+  if (!area) return;
+
+  if (!vehicle) {
+    area.innerHTML = `<div class="insp-card insp-none">
+      <div class="insp-card-left">
+        <div class="insp-label">VEHICLE INSPECTION</div>
+        <div class="insp-date insp-none">車両を選択してください</div>
+      </div>
+      <div class="insp-days insp-none">—</div>
+    </div>`;
+    return;
+  }
+
+  // localStorageから車検データを取得（管理画面と共有）
+  let inspData = {};
+  try { inspData = JSON.parse(localStorage.getItem('nexus_inspection') || '{}'); } catch(e) {}
+  const dateStr = inspData[vehicle] || '';
+
+  if (!dateStr) {
+    area.innerHTML = `<div class="insp-card insp-none">
+      <div class="insp-card-left">
+        <div class="insp-label">VEHICLE INSPECTION</div>
+        <div class="insp-date insp-none">車検有効期限 未登録</div>
+      </div>
+      <div class="insp-days insp-none">管理画面で登録</div>
+    </div>`;
+    return;
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const exp   = new Date(dateStr); exp.setHours(0,0,0,0);
+  const days  = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+
+  let cls, daysText;
+  if (days < 0) {
+    cls      = 'insp-err';
+    daysText = `期限切れ
+${Math.abs(days)}日超過`;
+  } else if (days <= 60) {
+    cls      = 'insp-warn';
+    daysText = `残り
+${days} 日`;
+  } else {
+    cls      = 'insp-safe';
+    daysText = `残り
+${days} 日`;
+  }
+
+  area.innerHTML = `<div class="insp-card ${cls}">
+    <div class="insp-card-left">
+      <div class="insp-label">VEHICLE INSPECTION</div>
+      <div class="insp-date ${cls}">${dateStr}</div>
+    </div>
+    <div class="insp-days ${cls}" style="white-space:pre-line;text-align:right">${daysText}</div>
+  </div>`;
 }
 
 function renderOilCard(vehicle) {
@@ -783,6 +878,7 @@ function resetAfterSuccess() {
   document.getElementById('oil-card-wrap').style.display = 'none';
   closeOilForm();
   oilType = null;
+  renderInspCard(null);
   const t = new Date();
   document.getElementById('f-date').value =
     `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
