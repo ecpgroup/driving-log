@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>運転日誌 入力 | NEXUS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --orange:#E8570A; --orange-light:#FF7A3D;
+    --dark:#111111; --dark2:#1C1C1C; --dark3:#272727;
+    --border:#3F3F3F; --text:#F0F0F0; --text-muted:#888; --text-dim:#555;
+    --green:#2ECC71; --red:#E74C3C; --yellow:#F39C12; --input-bg:#1A1A1A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans JP',sans-serif;background:var(--dark);color:var(--text);min-height:100vh;font-size:16px;}
+
+  .app-header{background:var(--dark2);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;}
+  .logo{font-family:'DM Mono',monospace;font-size:13px;color:var(--orange);letter-spacing:.15em;}
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;margin-right:6px;transition:background .3s;}
+  .conn-dot.ok{background:var(--green);}
+  .conn-dot.err{background:var(--red);}
+  .conn-label{font-size:11px;color:var(--text-muted);}
+
+  .form-wrap{padding:16px;max-width:480px;margin:0 auto;padding-bottom:110px;}
+
+  .section-label{font-size:10px;letter-spacing:.2em;color:var(--orange);font-weight:700;font-family:'DM Mono',monospace;margin-bottom:10px;margin-top:24px;display:flex;align-items:center;gap:8px;}
+  .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:500;letter-spacing:.05em;}
+  .field label .req{color:var(--orange);margin-left:3px;}
+  .field label .note{color:var(--text-dim);font-size:10px;margin-left:6px;}
+
+  input[type="text"],input[type="number"],input[type="date"],select,textarea{
+    width:100%;background:var(--input-bg);border:1.5px solid var(--border);border-radius:10px;
+    color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:16px;
+    padding:13px 14px;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none;appearance:none;outline:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,87,10,.15);}
+  input.error,select.error{border-color:var(--red);box-shadow:0 0 0 3px rgba(231,76,60,.15);}
+  input.valid{border-color:var(--green);}
+  textarea{resize:none;min-height:72px;}
+  select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+  select option{background:var(--dark2);}
+
+  .field-error{font-size:11px;color:var(--red);margin-top:5px;display:none;}
+  .field-error.show{display:block;}
+  .field-hint{font-size:11px;color:var(--text-dim);margin-top:5px;}
+
+  .meter-calc{background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-top:8px;display:flex;align-items:center;justify-content:space-between;}
+  .calc-label{font-size:11px;color:var(--text-muted);}
+  .calc-val{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;}
+  .calc-val.ok{color:var(--green);}
+  .calc-val.warn{color:var(--yellow);}
+  .calc-val.err{color:var(--red);}
+
+  .check-row{display:flex;gap:8px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);}
+  .check-row:last-child{border-bottom:none;}
+  .check-label{flex:1;font-size:14px;}
+  .check-options{display:flex;gap:4px;}
+  .check-btn{width:48px;height:38px;border-radius:8px;border:1.5px solid var(--border);background:var(--input-bg);color:var(--text-muted);font-size:15px;font-family:'Noto Sans JP',sans-serif;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;}
+  .check-btn:active{transform:scale(.94);}
+  .check-btn.sel-ok{background:rgba(46,204,113,.15);border-color:var(--green);color:var(--green);}
+  .check-btn.sel-ng{background:rgba(231,76,60,.15);border-color:var(--red);color:var(--red);}
+  .check-btn.sel-na{background:rgba(243,156,18,.15);border-color:var(--yellow);color:var(--yellow);}
+
+  .fuel-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+  /* SUBMIT */
+  .submit-bar{position:fixed;bottom:0;left:0;right:0;padding:12px 16px;background:linear-gradient(to top,var(--dark) 80%,transparent);z-index:50;}
+  .submit-btn{width:100%;max-width:480px;margin:0 auto;display:block;background:var(--orange);color:#fff;border:none;border-radius:14px;font-family:'Noto Sans JP',sans-serif;font-size:16px;font-weight:700;padding:16px;cursor:pointer;transition:all .2s;letter-spacing:.05em;}
+  .submit-btn:active{transform:scale(.98);}
+  .submit-btn:disabled{background:var(--text-dim);cursor:not-allowed;}
+
+  /* SENDING OVERLAY */
+  .sending-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+  .sending-overlay.show{display:flex;}
+  .spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sending-text{font-size:14px;color:var(--text-muted);}
+
+  /* SUCCESS SCREEN */
+  .success-screen{position:fixed;inset:0;background:var(--dark);z-index:290;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;}
+  .success-screen.show{display:flex;}
+  .success-icon{font-size:64px;margin-bottom:24px;}
+  .success-title{font-size:22px;font-weight:700;margin-bottom:10px;}
+  .success-sub{font-size:14px;color:var(--text-muted);margin-bottom:8px;line-height:1.7;}
+  .success-dist{font-family:'DM Mono',monospace;font-size:36px;color:var(--orange);font-weight:500;margin:16px 0;}
+  .success-next{margin-top:28px;padding:14px 32px;border-radius:12px;border:none;background:var(--orange);color:#fff;font-family:'Noto Sans JP',sans-serif;font-size:15px;font-weight:700;cursor:pointer;}
+
+  /* TOAST */
+  .toast{position:fixed;top:66px;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--dark2);border:1px solid var(--border);border-radius:10px;padding:11px 20px;font-size:13px;font-weight:500;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:200;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.success{border-color:var(--green);color:var(--green);}
+  .toast.error{border-color:var(--red);color:var(--red);}
+
+  /* OIL CARD */
+  .oil-card{background:var(--dark2);border:1.5px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;}
+  .oil-card.alert{border-color:var(--red);background:rgba(231,76,60,.05);}
+  .oil-card.warn{border-color:var(--yellow);background:rgba(243,156,18,.05);}
+  .oil-card.safe{border-color:var(--green);background:rgba(46,204,113,.05);}
+  .oil-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .oil-status-label{font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;letter-spacing:.08em;}
+  .oil-next-km{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;color:var(--text);}
+  .oil-next-km.alert{color:var(--red);}
+  .oil-next-km.warn{color:var(--yellow);}
+  .oil-next-km.safe{color:var(--green);}
+  .oil-remain{font-size:12px;margin-top:4px;}
+  .oil-remain.alert{color:var(--red);}
+  .oil-remain.warn{color:var(--yellow);}
+  .oil-remain.safe{color:var(--green);}
+  .oil-divider{height:1px;background:var(--border);margin:12px 0;}
+  .oil-toggle-btn{width:100%;padding:10px;border-radius:9px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .oil-toggle-btn:hover{border-color:var(--orange);color:var(--orange);}
+  .oil-toggle-btn.active{border-color:var(--orange);border-style:solid;color:var(--orange);background:rgba(232,87,10,.06);}
+  .oil-form{margin-top:14px;display:none;}
+  .oil-form.show{display:block;}
+  .oil-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+  .oil-type-row{display:flex;gap:8px;margin-bottom:10px;}
+  .oil-type-btn{flex:1;padding:10px 6px;border-radius:8px;border:1.5px solid var(--border);background:var(--input-bg);color:var(--text-muted);font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;text-align:center;}
+  .oil-type-btn.sel{border-color:var(--orange);background:rgba(232,87,10,.1);color:var(--orange);}
+  .oil-calc-box{background:var(--dark3);border:1px solid var(--border);border-radius:9px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;margin-top:10px;}
+  .oil-calc-label{font-size:11px;color:var(--text-muted);}
+  .oil-calc-val{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:var(--orange);}
+  .no-vehicle-msg{text-align:center;padding:20px;color:var(--text-dim);font-size:13px;}
+</style>
+</head>
+<body>
+
+<!-- ★ここにGASのURLを貼る -->
+<script>
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzt8fBrntvBZWryiTU2KTFAT7shYt7hBOTUocFp51PW3zsOiZpAgj5mU90rRT-3oeuGqw/exec';
+</script>
+
+<header class="app-header">
+  <div class="logo">NEXUS / 運転日誌</div>
+  <div style="display:flex;align-items:center;">
+    <span class="conn-dot" id="conn-dot"></span>
+    <span class="conn-label" id="conn-label">確認中...</span>
+  </div>
+</header>
+
+<div class="toast" id="toast"></div>
+
+<!-- 送信中オーバーレイ -->
+<div class="sending-overlay" id="sending-overlay">
+  <div class="spinner"></div>
+  <div class="sending-text">スプレッドシートに送信中...</div>
+</div>
+
+<!-- 送信成功画面 -->
+<div class="success-screen" id="success-screen">
+  <div class="success-icon">✅</div>
+  <div class="success-title">記録完了！</div>
+  <div class="success-sub">スプレッドシートに保存されました</div>
+  <div class="success-dist" id="success-dist-val">— km</div>
+  <div class="success-sub" id="success-detail"></div>
+  <button class="success-next" onclick="resetAfterSuccess()">次の記録を入力</button>
+</div>
+
+<!-- フォーム本体 -->
+<div class="form-wrap" id="form-body">
+
+  <div class="section-label">基本情報</div>
+
+  <div class="field">
+    <label>日付<span class="req">*</span></label>
+    <input type="date" id="f-date">
+    <div class="field-error" id="err-date">日付を入力してください</div>
+  </div>
+
+  <div class="field">
+    <label>車両<span class="req">*</span></label>
+    <select id="f-vehicle" onchange="onVehicleChange()">
+      <option value="">-- 車両を選択 --</option>
+      <optgroup label="── ダンプ ──────────────">
+        <option>10tダンプ（奈良130た901）</option>
+        <option>10tダンプ（奈良130ほ901）</option>
+        <option>10tダンプ（奈良130の901）</option>
+        <option>10tダンプ（奈良130て901）</option>
+        <option>8tダンプ（奈良130ひ901）</option>
+        <option>4tファイター1号機（奈良130と901）</option>
+        <option>4tファイター2号機（奈良130な901）</option>
+        <option>4tファイター3号機（奈良130ね901）</option>
+        <option>4tファイター4号機（奈良130み901）</option>
+        <option>3tキャンター1号機（奈良430て901）</option>
+        <option>3tキャンター2号機（奈良430と901）</option>
+        <option>3tキャンター3号機（奈良430な901）</option>
+        <option>3tキャンター4号機（奈良430ぬ901）</option>
+        <option>軽トラック（奈良483え901）</option>
+        <option>軽トラック（奈良483け901）</option>
+      </optgroup>
+      <optgroup label="── その他 ──────────────">
+        <option>トレーラー（三重130ち901）</option>
+        <option>3tユニック（奈良130ぬ901）</option>
+        <option>10t回送車（三重130そ901）</option>
+        <option>8t回送車（三重130せ901）</option>
+        <option>ダブルキャブ（奈良400つ5377）</option>
+      </optgroup>
+    </select>
+    <div class="field-error" id="err-vehicle">車両を選択してください</div>
+  </div>
+
+  <div class="field">
+    <label>運転者名<span class="req">*</span><span class="note">他業者は「業者名 氏名」</span></label>
+    <input type="text" id="f-driver" placeholder="例：上田　／　○○建設 田中" autocomplete="name">
+    <div class="field-error" id="err-driver">氏名を入力してください</div>
+  </div>
+
+  <div class="section-label">走行メーター</div>
+
+  <div class="field">
+    <label>今回メーター（最終）<span class="req">*</span></label>
+    <input type="number" id="f-meter" placeholder="例：172037" inputmode="numeric" oninput="calcDist()">
+    <div class="field-hint">オドメーター（積算）の数値を入力</div>
+    <div class="field-error" id="err-meter">メーター値を入力してください</div>
+  </div>
+
+  <div class="field">
+    <label>前回メーター（前日最終値）</label>
+    <input type="number" id="f-meter-prev" placeholder="例：171878" inputmode="numeric" oninput="calcDist()">
+    <div class="field-hint">不明な場合は空欄でも可</div>
+  </div>
+
+  <div class="meter-calc">
+    <div><div class="calc-label">走行距離（自動計算）</div></div>
+    <div class="calc-val" id="calc-val">— km</div>
+  </div>
+
+  <div class="section-label">走行ルート</div>
+
+  <div class="field">
+    <label>走行ルート<span class="req">*</span></label>
+    <textarea id="f-route" placeholder="例：東山置場 → 西大寺&#10;複数は改行または「→」で区切る"></textarea>
+    <div class="field-error" id="err-route">走行ルートを入力してください</div>
+  </div>
+
+  <div class="section-label">給油・アドブルー</div>
+
+  <div class="fuel-row">
+    <div class="field">
+      <label>給油量（L）</label>
+      <input type="number" id="f-fuel" placeholder="なし→空欄" inputmode="decimal" step="0.01">
+    </div>
+    <div class="field">
+      <label>アドブルー</label>
+      <select id="f-adblue" onchange="toggleAdblue()">
+        <option value="ok">〇 残量確認</option>
+        <option value="add">補給あり↓L記入</option>
+        <option value="na">－ 対象外</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field" id="adblue-litre-field" style="display:none">
+    <label>アドブルー補給量（L）</label>
+    <input type="number" id="f-adblue-litre" placeholder="例：25" inputmode="decimal" step="0.1">
+  </div>
+
+  <div class="section-label">始業点検チェック</div>
+
+  <div id="check-list"></div>
+
+  <div class="section-label">エンジンオイル・フィルター交換</div>
+
+  <!-- 車両未選択時メッセージ -->
+  <div class="no-vehicle-msg" id="oil-no-vehicle">
+    ↑ 車両を選択すると交換状況が表示されます
+  </div>
+
+  <!-- 交換状況カード（車両選択後に表示） -->
+  <div id="oil-card-wrap" style="display:none">
+    <div class="oil-card" id="oil-card">
+      <div class="oil-status-row">
+        <div>
+          <div class="oil-status-label">次回交換距離</div>
+          <div class="oil-next-km" id="oil-next-km">— km</div>
+          <div class="oil-remain" id="oil-remain"></div>
+        </div>
+        <div style="text-align:right">
+          <div class="oil-status-label">前回交換距離</div>
+          <div style="font-family:'DM Mono',monospace;font-size:16px;color:var(--text-muted);margin-top:4px" id="oil-prev-km">— km</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px" id="oil-interval-label">+10,000km</div>
+        </div>
+      </div>
+      <div class="oil-divider"></div>
+      <!-- 交換登録トグルボタン -->
+      <button class="oil-toggle-btn" id="oil-toggle-btn" onclick="toggleOilForm()">
+        <span id="oil-toggle-icon">＋</span>
+        <span id="oil-toggle-text">今日交換した場合はここをタップ</span>
+      </button>
+      <!-- 交換登録フォーム -->
+      <div class="oil-form" id="oil-form">
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;letter-spacing:.05em">交換種別</div>
+          <div class="oil-type-row">
+            <button class="oil-type-btn" id="otype-oil" onclick="selectOilType('oil')">オイルのみ</button>
+            <button class="oil-type-btn" id="otype-both" onclick="selectOilType('both')">オイル＋フィルター</button>
+          </div>
+        </div>
+        <div class="oil-form-grid">
+          <div class="field" style="margin-bottom:0">
+            <label>交換年月日<span class="req">*</span></label>
+            <input type="date" id="oil-date">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>交換手配者<span class="req">*</span></label>
+            <input type="text" id="oil-arranger" placeholder="例：大上">
+          </div>
+        </div>
+        <div class="field" style="margin-top:10px;margin-bottom:0">
+          <label>交換時の走行距離（km）<span class="req">*</span></label>
+          <input type="number" id="oil-km" placeholder="例：173447" inputmode="numeric" oninput="calcNextOil()">
+          <div class="field-hint">今日のメーター値と同じ場合は同じ数値を入力</div>
+        </div>
+        <div class="oil-calc-box" id="oil-calc-box">
+          <div class="oil-calc-label">次回交換距離（自動計算）</div>
+          <div class="oil-calc-val" id="oil-calc-next">— km</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">備考</div>
+  <div class="field">
+    <label>特記事項・異常内容</label>
+    <textarea id="f-note" placeholder="異常があった場合の詳細、特記事項など"></textarea>
+  </div>
+
+</div>
+
+<div class="submit-bar">
+  <button class="submit-btn" id="submit-btn" onclick="submitForm()">スプレッドシートに送信</button>
+</div>
+
+<script>
+// ============================================================
+// GAS接続確認
+// ============================================================
+function checkConnection() {
+  if (!GAS_URL || GAS_URL.includes('★')) {
+    setConnStatus(false, 'GAS未設定');
+    return;
+  }
+  fetch(GAS_URL + '?action=stats')
+    .then(r => r.json())
+    .then(d => setConnStatus(d.status === 'ok', '接続OK'))
+    .catch(() => setConnStatus(false, '接続エラー'));
+}
+function setConnStatus(ok, label) {
+  document.getElementById('conn-dot').className = 'conn-dot ' + (ok ? 'ok' : 'err');
+  document.getElementById('conn-label').textContent = label;
+}
+checkConnection();
+
+// ============================================================
+// 車両ごとのオイル交換データ（localStorage で管理）
+// キー: "oil_" + 車両名  値: { prevKm, nextKm, date, arranger, type }
+// ============================================================
+const OIL_INTERVAL = 10000; // 全車両共通 10,000km
+
+function getOilData(vehicle) {
+  try {
+    const raw = localStorage.getItem('oil_' + vehicle);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+function saveOilData(vehicle, data) {
+  localStorage.setItem('oil_' + vehicle, JSON.stringify(data));
+}
+
+// ============================================================
+// 車両選択時の処理
+// ============================================================
+function onVehicleChange() {
+  const vehicle = document.getElementById('f-vehicle').value;
+
+  // オイルフォームをリセット
+  closeOilForm();
+
+  if (!vehicle) {
+    document.getElementById('oil-no-vehicle').style.display = 'block';
+    document.getElementById('oil-card-wrap').style.display = 'none';
+    return;
+  }
+  document.getElementById('oil-no-vehicle').style.display = 'none';
+  document.getElementById('oil-card-wrap').style.display = 'block';
+
+  renderOilCard(vehicle);
+}
+
+function renderOilCard(vehicle) {
+  const data = getOilData(vehicle);
+  const card = document.getElementById('oil-card');
+  const nextKmEl = document.getElementById('oil-next-km');
+  const prevKmEl = document.getElementById('oil-prev-km');
+  const remainEl = document.getElementById('oil-remain');
+  const currentMeter = parseFloat(document.getElementById('f-meter').value) || null;
+
+  if (!data) {
+    // 未登録
+    nextKmEl.textContent = '未登録';
+    nextKmEl.className = 'oil-next-km';
+    prevKmEl.textContent = '—';
+    remainEl.textContent = '交換記録を登録してください';
+    remainEl.className = 'oil-remain';
+    card.className = 'oil-card';
+    return;
+  }
+
+  const nextKm = data.nextKm;
+  prevKmEl.textContent = data.prevKm.toLocaleString() + ' km';
+  nextKmEl.textContent = nextKm.toLocaleString() + ' km';
+
+  if (currentMeter) {
+    const remain = nextKm - currentMeter;
+    if (remain <= 0) {
+      remainEl.textContent = `⚠ 交換時期を過ぎています（${Math.abs(remain).toLocaleString()}km超過）`;
+      remainEl.className = 'oil-remain alert';
+      nextKmEl.className = 'oil-next-km alert';
+      card.className = 'oil-card alert';
+    } else if (remain <= 1000) {
+      remainEl.textContent = `⚠ あと ${remain.toLocaleString()} km で交換時期です`;
+      remainEl.className = 'oil-remain warn';
+      nextKmEl.className = 'oil-next-km warn';
+      card.className = 'oil-card warn';
+    } else {
+      remainEl.textContent = `あと ${remain.toLocaleString()} km`;
+      remainEl.className = 'oil-remain safe';
+      nextKmEl.className = 'oil-next-km safe';
+      card.className = 'oil-card safe';
+    }
+  } else {
+    remainEl.textContent = `前回交換: ${data.date || '—'}　手配: ${data.arranger || '—'}`;
+    remainEl.className = 'oil-remain';
+    nextKmEl.className = 'oil-next-km';
+    card.className = 'oil-card';
+  }
+}
+
+// メーター入力時にもオイル残量を再計算
+const origCalcDist_oil = window.calcDist;
+
+// ============================================================
+// オイル交換フォーム開閉
+// ============================================================
+function toggleOilForm() {
+  const form = document.getElementById('oil-form');
+  const isOpen = form.classList.contains('show');
+  if (isOpen) closeOilForm();
+  else openOilForm();
+}
+function openOilForm() {
+  const form = document.getElementById('oil-form');
+  const btn  = document.getElementById('oil-toggle-btn');
+  form.classList.add('show');
+  btn.classList.add('active');
+  document.getElementById('oil-toggle-icon').textContent = '－';
+  document.getElementById('oil-toggle-text').textContent = '交換登録をキャンセル';
+  // 日付を今日にセット
+  const t = new Date();
+  document.getElementById('oil-date').value =
+    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  // 今回メーターがあれば交換距離にもセット
+  const m = document.getElementById('f-meter').value;
+  if (m && !document.getElementById('oil-km').value) {
+    document.getElementById('oil-km').value = m;
+    calcNextOil();
+  }
+}
+function closeOilForm() {
+  const form = document.getElementById('oil-form');
+  const btn  = document.getElementById('oil-toggle-btn');
+  form.classList.remove('show');
+  btn.classList.remove('active');
+  document.getElementById('oil-toggle-icon').textContent = '＋';
+  document.getElementById('oil-toggle-text').textContent = '今日交換した場合はここをタップ';
+  // フォームリセット
+  document.getElementById('oil-date').value = '';
+  document.getElementById('oil-arranger').value = '';
+  document.getElementById('oil-km').value = '';
+  document.getElementById('oil-calc-next').textContent = '— km';
+  document.querySelectorAll('.oil-type-btn').forEach(b => b.classList.remove('sel'));
+  oilType = null;
+}
+
+let oilType = null;
+function selectOilType(type) {
+  oilType = type;
+  document.querySelectorAll('.oil-type-btn').forEach(b => b.classList.remove('sel'));
+  document.getElementById('otype-' + type).classList.add('sel');
+}
+
+// ============================================================
+// 次回交換距離の自動計算
+// ============================================================
+function calcNextOil() {
+  const km = parseFloat(document.getElementById('oil-km').value);
+  const el = document.getElementById('oil-calc-next');
+  if (!km || isNaN(km)) { el.textContent = '— km'; return; }
+  el.textContent = (km + OIL_INTERVAL).toLocaleString() + ' km';
+}
+
+// ============================================================
+// オイル交換情報を取得
+// ============================================================
+function getOilPayload() {
+  const form = document.getElementById('oil-form');
+  if (!form.classList.contains('show')) return null; // 交換登録しない場合はnull
+
+  const date     = document.getElementById('oil-date').value;
+  const arranger = document.getElementById('oil-arranger').value.trim();
+  const km       = parseFloat(document.getElementById('oil-km').value);
+
+  if (!date || !arranger || !km) return 'invalid';
+  if (!oilType) return 'invalid';
+
+  return { date, arranger, km, type: oilType, nextKm: km + OIL_INTERVAL };
+}
+
+// ============================================================
+// チェック項目
+// ============================================================
+const CHECK_ITEMS = [
+  { key: 'dump_lever', label: 'ダンプレバー／サイドブレーキ', opts: ['〇','×','－'] },
+  { key: 'etc',        label: 'ETCカード・機器',             opts: ['〇','×','－'] },
+  { key: 'clean',      label: '車内清掃',                    opts: ['〇','×'] },
+];
+(function buildCheckList() {
+  document.getElementById('check-list').innerHTML = CHECK_ITEMS.map(item => `
+    <div class="check-row">
+      <div class="check-label">${item.label}</div>
+      <div class="check-options">
+        ${item.opts.map(o => {
+          const cls = o==='〇'?'sel-ok':o==='×'?'sel-ng':'sel-na';
+          return `<button class="check-btn" data-key="${item.key}" data-val="${o}" data-cls="${cls}" onclick="selectCheck(this)">${o}</button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+})();
+
+function selectCheck(btn) {
+  document.querySelectorAll(`.check-btn[data-key="${btn.dataset.key}"]`).forEach(b =>
+    b.classList.remove('sel-ok','sel-ng','sel-na'));
+  btn.classList.add(btn.dataset.cls);
+}
+function getChecks() {
+  const r = {};
+  CHECK_ITEMS.forEach(item => {
+    const sel = document.querySelector(`.check-btn[data-key="${item.key}"].sel-ok,.check-btn[data-key="${item.key}"].sel-ng,.check-btn[data-key="${item.key}"].sel-na`);
+    r[item.key] = sel ? sel.dataset.val : '';
+  });
+  return r;
+}
+
+// ============================================================
+// アドブルー切替
+// ============================================================
+function toggleAdblue() {
+  document.getElementById('adblue-litre-field').style.display =
+    document.getElementById('f-adblue').value === 'add' ? 'block' : 'none';
+}
+
+// ============================================================
+// 走行距離自動計算（オイル残量も連動）
+// ============================================================
+function calcDist() {
+  const meter = parseFloat(document.getElementById('f-meter').value);
+  const prev  = parseFloat(document.getElementById('f-meter-prev').value);
+  const el    = document.getElementById('calc-val');
+  if (!meter || !prev || isNaN(meter) || isNaN(prev)) {
+    el.textContent = '— km'; el.className = 'calc-val';
+  } else {
+    const dist = meter - prev;
+    if (dist < 0)       { el.textContent = `❌ ${dist} km（メーターが逆転）`; el.className = 'calc-val err'; }
+    else if (dist === 0){ el.textContent = `0 km（前日と同じ？）`;           el.className = 'calc-val warn'; }
+    else if (dist > 800){ el.textContent = `⚠ ${dist} km（要確認）`;         el.className = 'calc-val warn'; }
+    else                { el.textContent = `${dist} km`;                     el.className = 'calc-val ok'; }
+  }
+  // オイル残量も再描画
+  const vehicle = document.getElementById('f-vehicle').value;
+  if (vehicle) renderOilCard(vehicle);
+}
+
+// ============================================================
+// 今日の日付
+// ============================================================
+(function() {
+  const t = new Date();
+  document.getElementById('f-date').value =
+    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+})();
+
+// ============================================================
+// バリデーション
+// ============================================================
+function validate() {
+  let ok = true;
+  [['f-date','err-date'],['f-vehicle','err-vehicle'],
+   ['f-driver','err-driver'],['f-meter','err-meter'],['f-route','err-route']].forEach(([id,eid]) => {
+    const el = document.getElementById(id);
+    const err = document.getElementById(eid);
+    if (!el.value.trim()) { el.classList.add('error'); err.classList.add('show'); ok = false; }
+    else { el.classList.remove('error'); el.classList.add('valid'); err.classList.remove('show'); }
+  });
+  const dist = parseFloat(document.getElementById('f-meter').value) - parseFloat(document.getElementById('f-meter-prev').value);
+  if (!isNaN(dist) && dist < 0) {
+    showToast('走行距離がマイナスです。メーター値を確認してください。', 'error');
+    ok = false;
+  }
+  // オイル交換フォームが開いている場合は必須チェック
+  const oilForm = document.getElementById('oil-form');
+  if (oilForm.classList.contains('show')) {
+    const oilResult = getOilPayload();
+    if (oilResult === 'invalid') {
+      showToast('交換種別・年月日・手配者・走行距離をすべて入力してください', 'error');
+      ok = false;
+    }
+  }
+  return ok;
+}
+
+// ============================================================
+// 送信
+// ============================================================
+async function submitForm() {
+  if (!validate()) { window.scrollTo({top:0,behavior:'smooth'}); return; }
+
+  if (!GAS_URL || GAS_URL.includes('★')) {
+    showToast('GASのURLが設定されていません', 'error'); return;
+  }
+
+  const meter = parseFloat(document.getElementById('f-meter').value);
+  const prev  = parseFloat(document.getElementById('f-meter-prev').value);
+  const dist  = (!isNaN(meter) && !isNaN(prev)) ? meter - prev : null;
+  const checks = getChecks();
+  const adblueMode = document.getElementById('f-adblue').value;
+  let adblueDisp = '〇';
+  if (adblueMode === 'add') {
+    const l = document.getElementById('f-adblue-litre').value;
+    adblueDisp = l ? `${l}L補給` : '補給';
+  } else if (adblueMode === 'na') adblueDisp = '－';
+
+  const oilPayload = getOilPayload(); // null or { date, arranger, km, type, nextKm }
+  const vehicle = document.getElementById('f-vehicle').value;
+
+  const payload = {
+    date:       document.getElementById('f-date').value,
+    vehicle,
+    driver:     document.getElementById('f-driver').value.trim(),
+    meter:      meter || null,
+    meterPrev:  prev  || null,
+    dist,
+    route:      document.getElementById('f-route').value.trim(),
+    fuel:       document.getElementById('f-fuel').value || '－',
+    adblue:     adblueDisp,
+    dump_lever: checks.dump_lever || '－',
+    etc:        checks.etc        || '－',
+    clean:      checks.clean      || '－',
+    note:       document.getElementById('f-note').value.trim(),
+    // オイル交換情報（交換した場合のみセット）
+    oilChange:  oilPayload ? {
+      type:     oilPayload.type === 'both' ? 'オイル・フィルター両方' : 'オイルのみ',
+      date:     oilPayload.date,
+      arranger: oilPayload.arranger,
+      km:       oilPayload.km,
+      nextKm:   oilPayload.nextKm,
+    } : null,
+  };
+
+  // localStorageのオイルデータを更新
+  if (oilPayload && oilPayload !== 'invalid') {
+    saveOilData(vehicle, {
+      prevKm:   oilPayload.km,
+      nextKm:   oilPayload.nextKm,
+      date:     oilPayload.date,
+      arranger: oilPayload.arranger,
+      type:     oilPayload.type,
+    });
+  }
+
+  // 送信中表示
+  document.getElementById('sending-overlay').classList.add('show');
+  document.getElementById('submit-btn').disabled = true;
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    document.getElementById('sending-overlay').classList.remove('show');
+
+    if (result.status === 'ok') {
+      showSuccess(payload);
+    } else {
+      throw new Error(result.message || '送信エラー');
+    }
+  } catch (err) {
+    document.getElementById('sending-overlay').classList.remove('show');
+    document.getElementById('submit-btn').disabled = false;
+    showToast('送信に失敗しました。通信状況を確認してください。', 'error');
+  }
+}
+
+function showSuccess(d) {
+  const hasOil = d.oilChange !== null;
+  document.getElementById('success-dist-val').textContent =
+    d.dist !== null ? `${d.dist} km` : '— km';
+  document.getElementById('success-detail').textContent =
+    `${d.vehicle}\n${d.driver}　${d.date}` +
+    (hasOil ? `\n🔧 オイル交換 → 次回 ${d.oilChange.nextKm.toLocaleString()} km` : '');
+  document.getElementById('success-screen').classList.add('show');
+}
+
+function resetAfterSuccess() {
+  document.getElementById('success-screen').classList.remove('show');
+  document.getElementById('submit-btn').disabled = false;
+  ['f-driver','f-meter','f-meter-prev','f-route','f-fuel','f-note'].forEach(id => {
+    const el = document.getElementById(id); el.value = ''; el.classList.remove('valid','error');
+  });
+  document.getElementById('f-vehicle').value = '';
+  document.getElementById('f-adblue').value = 'ok';
+  document.getElementById('adblue-litre-field').style.display = 'none';
+  document.getElementById('calc-val').textContent = '— km';
+  document.getElementById('calc-val').className = 'calc-val';
+  document.querySelectorAll('.check-btn').forEach(b => b.classList.remove('sel-ok','sel-ng','sel-na'));
+  // オイルセクションリセット
+  document.getElementById('oil-no-vehicle').style.display = 'block';
+  document.getElementById('oil-card-wrap').style.display = 'none';
+  closeOilForm();
+  oilType = null;
+  const t = new Date();
+  document.getElementById('f-date').value =
+    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+</script>
+</body>
+</html>
