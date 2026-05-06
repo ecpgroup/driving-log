@@ -130,7 +130,7 @@
 
 <!-- ★ここにGASのURLを貼る -->
 <script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbx2vbfS06q2gF_hb2h5pRsFdI3GkkP-AzPU4ur8KeFGBb2dOYCc-mVyg89TdIn5Qlcgog/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbyoQCIaN8apW8fDHfZHAEQEivpV_N5pISv1qMnv8muWcMd7Bb4NDaRQCH7NbrL7lN2bXg/exec';
 </script>
 
 <header class="app-header">
@@ -219,8 +219,9 @@
 
   <div class="field">
     <label>前回メーター（前日最終値）</label>
-    <input type="number" id="f-meter-prev" placeholder="例：171878" inputmode="numeric" oninput="calcDist()">
-    <div class="field-hint">不明な場合は空欄でも可</div>
+    <input type="number" id="f-meter-prev" placeholder="車両選択で自動入力" inputmode="numeric" oninput="calcDist()">
+    <div style="font-size:11px;color:var(--green);margin-top:5px;min-height:16px" id="prev-meter-status"></div>
+    <div class="field-hint">車両選択時に自動取得します。修正も可能です。</div>
   </div>
 
   <div class="meter-calc">
@@ -382,12 +383,62 @@ function onVehicleChange() {
   if (!vehicle) {
     document.getElementById('oil-no-vehicle').style.display = 'block';
     document.getElementById('oil-card-wrap').style.display = 'none';
+    // 前回メーターをクリア
+    clearPrevMeter();
     return;
   }
   document.getElementById('oil-no-vehicle').style.display = 'none';
   document.getElementById('oil-card-wrap').style.display = 'block';
 
   renderOilCard(vehicle);
+
+  // GASから最新メーターを取得して前回メーター欄に自動入力
+  fetchLatestMeter(vehicle);
+}
+
+// GASから該当車両の最新メーターを取得
+async function fetchLatestMeter(vehicle) {
+  const prevEl    = document.getElementById('f-meter-prev');
+  const statusEl  = document.getElementById('prev-meter-status');
+
+  // ローディング表示
+  prevEl.value       = '';
+  prevEl.placeholder = '取得中...';
+  if (statusEl) statusEl.textContent = '';
+
+  try {
+    const url = GAS_URL + '?action=latest_meter&vehicle=' + encodeURIComponent(vehicle);
+    const res  = await fetch(url);
+    const json = await res.json();
+
+    if (json.status === 'ok' && json.meter) {
+      prevEl.value       = json.meter;
+      prevEl.placeholder = '例：171878';
+      if (statusEl) {
+        statusEl.textContent = `前回記録: ${json.date || '—'} / ${json.driver || '—'}`;
+      }
+      // 走行距離を自動計算
+      calcDist();
+    } else {
+      prevEl.value       = '';
+      prevEl.placeholder = '記録なし（手入力）';
+      if (statusEl) statusEl.textContent = 'この車両の記録がまだありません';
+    }
+  } catch (err) {
+    prevEl.value       = '';
+    prevEl.placeholder = '取得失敗（手入力）';
+    if (statusEl) statusEl.textContent = '取得エラー：手動で入力してください';
+  }
+}
+
+function clearPrevMeter() {
+  const prevEl   = document.getElementById('f-meter-prev');
+  const statusEl = document.getElementById('prev-meter-status');
+  prevEl.value       = '';
+  prevEl.placeholder = '例：171878';
+  if (statusEl) statusEl.textContent = '';
+  document.getElementById('calc-val').textContent = '— km';
+  document.getElementById('calc-val').className   = 'calc-val';
 }
 
 function renderOilCard(vehicle) {
@@ -722,6 +773,7 @@ function resetAfterSuccess() {
   });
   document.getElementById('f-vehicle').value = '';
   document.getElementById('f-adblue').value = 'ok';
+  clearPrevMeter();
   document.getElementById('adblue-litre-field').style.display = 'none';
   document.getElementById('calc-val').textContent = '— km';
   document.getElementById('calc-val').className = 'calc-val';
