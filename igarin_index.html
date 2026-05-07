@@ -482,7 +482,7 @@ function renderInspCard(vehicle) {
 
   // localStorageから車検データを取得（管理画面と共有）
   let inspData = {};
-  try { inspData = JSON.parse(localStorage.getItem('nexus_inspection') || '{}'); } catch(e) {}
+  try { inspData = JSON.parse(localStorage.getItem('igarin_inspection') || '{}'); } catch(e) {}
   const dateStr = inspData[vehicle] || '';
 
   if (!dateStr) {
