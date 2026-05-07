@@ -148,7 +148,7 @@
 
 <!-- ★ここにGASのURLを貼る -->
 <script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbyoQCIaN8apW8fDHfZHAEQEivpV_N5pISv1qMnv8muWcMd7Bb4NDaRQCH7NbrL7lN2bXg/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxJmToI_Cx9NQ0Nsa4G5uMURmE5a1shZ1rJqhDXb-SoPNEnGDF4q4dkn7mIqfYEkGnjjw/exec';
 </script>
 
 <header class="app-header">
@@ -374,10 +374,59 @@ function checkConnection() {
     setConnStatus(false, 'GAS未設定');
     return;
   }
-  fetch(GAS_URL + '?action=stats')
+  // 全共有データをGASから一括取得
+  fetch(GAS_URL + '?action=get_all')
     .then(r => r.json())
-    .then(d => setConnStatus(d.status === 'ok', '接続OK'))
+    .then(json => {
+      if (json.status !== 'ok') return;
+      // 車検データ
+      if (json.inspection) {
+        const inspData = {};
+        Object.entries(json.inspection).forEach(([veh, d]) => {
+          if (d.inspDate) inspData[veh] = d.inspDate;
+        });
+        localStorage.setItem('shared_inspection', JSON.stringify(inspData));
+      }
+      // オイル交換データ
+      if (json.oil) {
+        localStorage.setItem('nexus_oil_data', JSON.stringify(json.oil));
+      }
+      // 車両マスタ
+      if (json.vehicles && json.vehicles.length > 0) {
+        localStorage.setItem('nexus_vehicles', JSON.stringify(json.vehicles));
+        // 車両セレクトを再構築
+        buildVehicleSelect();
+      }
+      setConnStatus(true, '接続OK');
+    })
     .catch(() => setConnStatus(false, '接続エラー'));
+}
+
+// 車両セレクトをlocalStorageの車両マスタから動的に構築
+function buildVehicleSelect() {
+  try {
+    const vehicles = JSON.parse(localStorage.getItem('nexus_vehicles') || '[]');
+    if (!vehicles || vehicles.length === 0) return;
+    const sel = document.getElementById('f-vehicle');
+    const currentVal = sel.value;
+    const groups = {};
+    vehicles.forEach(v => {
+      if (!groups[v.group]) groups[v.group] = [];
+      groups[v.group].push(v.name);
+    });
+    sel.innerHTML = '<option value="">-- 車両を選択 --</option>';
+    Object.entries(groups).forEach(([g, names]) => {
+      const og = document.createElement('optgroup');
+      og.label = `── ${g} ──────────────`;
+      names.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n; opt.textContent = n;
+        if (n === currentVal) opt.selected = true;
+        og.appendChild(opt);
+      });
+      sel.appendChild(og);
+    });
+  } catch(e) {}
 }
 function setConnStatus(ok, label) {
   document.getElementById('conn-dot').className = 'conn-dot ' + (ok ? 'ok' : 'err');
@@ -494,7 +543,7 @@ function renderInspCard(vehicle) {
 
   // localStorageから車検データを取得（管理画面と共有）
   let inspData = {};
-  try { inspData = JSON.parse(localStorage.getItem('nexus_inspection') || '{}'); } catch(e) {}
+  try { inspData = JSON.parse(localStorage.getItem('shared_inspection') || '{}'); } catch(e) {}
   const dateStr = inspData[vehicle] || '';
 
   if (!dateStr) {
