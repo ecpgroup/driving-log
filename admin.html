@@ -173,7 +173,7 @@ select.full option{background:var(--dark2);}
 </head>
 <body>
 <script>
-const GAS_URL='https://script.google.com/macros/s/AKfycbyoQCIaN8apW8fDHfZHAEQEivpV_N5pISv1qMnv8muWcMd7Bb4NDaRQCH7NbrL7lN2bXg/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbxJmToI_Cx9NQ0Nsa4G5uMURmE5a1shZ1rJqhDXb-SoPNEnGDF4q4dkn7mIqfYEkGnjjw/exec';
 const OIL_INTERVAL=10000;
 const LS_OIL='nexus_oil_data';
 const LS_VEH='nexus_vehicles';
@@ -462,6 +462,8 @@ async function loadData(){
     allData=json.data;
     setConn('ok',`接続OK（${allData.length}件）`);
     document.getElementById('last-updated').textContent='最終取得: '+new Date().toLocaleTimeString('ja-JP');
+    // 全共有データをGASから一括取得
+    await loadAllSharedData();
     buildFilterOptions();buildYearFilter();applyFilters();renderStats();renderInspAlerts();showMain();
   }catch(err){
     setConn('err','エラー');
@@ -541,14 +543,21 @@ function inspAlertItem(a,bookData){
   </div>`;
 }
 
-function saveBooking(veh,date){
+async function saveBooking(veh,date){
+  // localStorageを即時更新（UI反映）
   const bookData=loadBookData();
   if(date) bookData[veh]=date;
   else delete bookData[veh];
   saveBookData(bookData);
   renderInspAlerts();
   renderInspTable();
-  showToast(date?`${veh.split('（')[0]} 予約日を登録しました`:'予約日を削除しました','success');
+  // GASに保存（全員共有）
+  const id=loadInspData();
+  const ok = await saveInspectionToGAS(veh, id[veh]||'', date||'');
+  showToast(ok
+    ? (date?`${veh.split('（')[0]} 予約日を登録しました（全員に反映）`:'予約日を削除しました（全員に反映）')
+    : `ローカルに保存しました（GAS保存失敗）`,
+    ok?'success':'error');
 }
 
 // ============================================================
@@ -771,18 +780,24 @@ function clearOilForm(clearVeh=true){
   const t=new Date();
   document.getElementById('oil-date').value=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
 }
-function saveOilEntry(){
+async function saveOilEntry(){
   const veh=document.getElementById('oil-veh').value,date=document.getElementById('oil-date').value;
   const arranger=document.getElementById('oil-arranger').value.trim(),km=parseFloat(document.getElementById('oil-km').value);
   const type=document.getElementById('oil-type').value;
   if(!veh||!date||!arranger||!km){showToast('全項目を入力してください','error');return;}
-  const od=loadOilData();od[veh]={prevKm:km,nextKm:km+OIL_INTERVAL,date,arranger,type};
-  saveOilData(od);showToast(`${veh.split('（')[0]} のオイルデータを保存しました`,'success');
+  const entry={prevKm:km,nextKm:km+OIL_INTERVAL,date,arranger,type};
+  // localStorageに即時反映
+  const od=loadOilData();od[veh]=entry;saveOilData(od);
+  // GASに保存（全員共有）
+  const ok=await saveOilToGAS(veh,entry);
+  showToast(ok?`${veh.split('（')[0]} のオイルデータを保存しました（全員に反映）`:`ローカルに保存しました（GAS保存失敗）`,ok?'success':'error');
   clearOilForm();renderOilTable();
 }
-function deleteOilEntry(veh){
+async function deleteOilEntry(veh){
   if(!confirm(`「${veh}」のオイルデータを削除しますか？`))return;
-  const od=loadOilData();delete od[veh];saveOilData(od);renderOilTable();showToast('削除しました','success');
+  const od=loadOilData();delete od[veh];saveOilData(od);
+  const ok=await deleteOilFromGAS(veh);
+  renderOilTable();showToast(ok?'削除しました（全員に反映）':'ローカルから削除しました（GAS削除失敗）',ok?'success':'error');
 }
 function editOilEntry(veh){
   switchTab('oil');
@@ -837,7 +852,8 @@ function renderInspTable(){
   }).join('');
 }
 
-function saveInspDate(veh,date){
+async function saveInspDate(veh,date){
+  // localStorageを即時更新（UI反映）
   const id=loadInspData();
   if(date) id[veh]=date;
   else delete id[veh];
@@ -846,10 +862,16 @@ function saveInspDate(veh,date){
   renderInspTable();
   renderInspAlerts();
   renderStats();
-  showToast(date?`車検有効期限を登録しました`:'車検有効期限を削除しました','success');
+  // GASに保存（全員共有）
+  const bd=loadBookData();
+  const ok = await saveInspectionToGAS(veh, date||'', bd[veh]||'');
+  showToast(ok
+    ? (date?`車検有効期限を登録しました（全員に反映）`:'車検有効期限を削除しました（全員に反映）')
+    : `ローカルに保存しました（GAS保存失敗）`,
+    ok?'success':'error');
 }
 
-function addVehicle(){
+async function addVehicle(){
   const name=document.getElementById('new-veh-name').value.trim();
   const group=document.getElementById('new-veh-group').value;
   const insp=document.getElementById('new-veh-insp').value;
@@ -860,16 +882,23 @@ function addVehicle(){
   if(insp){const id=loadInspData();id[name]=insp;saveInspData(id);}
   document.getElementById('new-veh-name').value='';
   document.getElementById('new-veh-insp').value='';
+  // GASに保存（全員共有）
+  const ok=await addVehicleToGAS(name,group);
+  if(insp) await saveInspectionToGAS(name,insp,'');
   renderVehicleTable();renderInspTable();
-  showToast(`「${name}」を追加しました`,'success');
+  showToast(ok?`「${name}」を追加しました（全員に反映）`:`ローカルに追加しました（GAS保存失敗）`,ok?'success':'error');
 }
-function removeVehicle(i){
+async function removeVehicle(i){
   const vs=loadVehicles(),v=vs[i];
   if(!confirm(`「${v.name}」を削除しますか？`))return;
   vs.splice(i,1);saveVehicles(vs);
   const od=loadOilData();delete od[v.name];saveOilData(od);
   const id=loadInspData();delete id[v.name];saveInspData(id);
-  renderVehicleTable();renderInspTable();showToast('削除しました','success');
+  // GASから削除（全員共有）
+  const ok=await removeVehicleFromGAS(v.name);
+  await deleteOilFromGAS(v.name);
+  renderVehicleTable();renderInspTable();
+  showToast(ok?'削除しました（全員に反映）':'ローカルから削除しました（GAS削除失敗）',ok?'success':'error');
 }
 function resetVehicles(){
   if(!confirm('車両リストをデフォルトに戻しますか？'))return;
@@ -983,6 +1012,104 @@ function printPreview(){
 // ヘルパー
 // ============================================================
 const esc=s=>s.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+// ============================================================
+// 全共有データ GAS連携（車検・オイル・車両マスタ）
+// ============================================================
+async function loadAllSharedData() {
+  try {
+    const res  = await fetch(GAS_URL + '?action=get_all');
+    const json = await res.json();
+    if (json.status !== 'ok') return;
+
+    // 車検データ
+    if (json.inspection) {
+      const inspData={}, bookData={};
+      Object.entries(json.inspection).forEach(([veh,d])=>{
+        if(d.inspDate) inspData[veh]=d.inspDate;
+        if(d.bookDate) bookData[veh]=d.bookDate;
+      });
+      lsSet(LS_INSP, inspData);
+      lsSet(LS_BOOK, bookData);
+    }
+
+    // オイル交換データ
+    if (json.oil) {
+      lsSet(LS_OIL, json.oil);
+    }
+
+    // 車両マスタ（GASにデータがある場合のみ上書き）
+    if (json.vehicles && json.vehicles.length > 0) {
+      lsSet(LS_VEH, json.vehicles);
+    }
+
+  } catch(err) {
+    console.warn('共有データの取得に失敗（ローカルデータを使用）:', err.message);
+  }
+}
+
+async function saveInspectionToGAS(vehicle, inspDate, bookDate) {
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action:'save_inspection', vehicle, inspDate:inspDate||'', bookDate:bookDate||'' })
+    });
+    const json = await res.json();
+    return json.status === 'ok';
+  } catch(err) { return false; }
+}
+
+async function saveOilToGAS(vehicle, oilData) {
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action:   'save_oil',
+        vehicle:  vehicle,
+        prevKm:   oilData.prevKm  || '',
+        nextKm:   oilData.nextKm  || '',
+        date:     oilData.date    || '',
+        arranger: oilData.arranger|| '',
+        type:     oilData.type    || 'oil',
+      })
+    });
+    const json = await res.json();
+    return json.status === 'ok';
+  } catch(err) { return false; }
+}
+
+async function deleteOilFromGAS(vehicle) {
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action:'delete_oil', vehicle })
+    });
+    const json = await res.json();
+    return json.status === 'ok';
+  } catch(err) { return false; }
+}
+
+async function addVehicleToGAS(name, group) {
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action:'add_vehicle', name, group })
+    });
+    const json = await res.json();
+    return json.status === 'ok';
+  } catch(err) { return false; }
+}
+
+async function removeVehicleFromGAS(name) {
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action:'remove_vehicle', name })
+    });
+    const json = await res.json();
+    return json.status === 'ok';
+  } catch(err) { return false; }
+}
+
 function showToast(msg,type='success'){
   const t=document.getElementById('toast');
   t.textContent=msg;t.className=`toast ${type} show`;
