@@ -604,7 +604,7 @@ function clearFilters(){
   applyFilters();
 }
 const nd=val=>val?String(val).replace(/-/g,'/').substring(0,10):'';
-const isAlert=r=>{const d=Number(r[COL.dist]);return d<0||d>800||r[COL.dump]==='×'||r[COL.etc]==='×'||r[COL.clean]==='×'||r[COL.tire]==='×'||String(r[COL.flag]).includes('⚠');};
+const isAlert=r=>{const d=Number(r[COL.dist]);return d<0||d>800||r[COL.dump]==='×'||r[COL.etc]==='×'||r[COL.tire]==='×'||String(r[COL.flag]).includes('⚠');};
 
 function applyFilters(){
   const fv=document.getElementById('fv').value,fd=document.getElementById('fd').value;
