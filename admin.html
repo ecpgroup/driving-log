@@ -173,7 +173,7 @@ select.full option{background:var(--dark2);}
 </head>
 <body>
 <script>
-const GAS_URL='https://script.google.com/macros/s/AKfycbxJmToI_Cx9NQ0Nsa4G5uMURmE5a1shZ1rJqhDXb-SoPNEnGDF4q4dkn7mIqfYEkGnjjw/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbwvqpiv-zW0ABVEhOGrCBjnELuAt1mjKjJpclv5xDe9VvnowNGcbheNqLt-Hus4z6TKZw/exec';
 const OIL_INTERVAL=10000;
 const LS_OIL='nexus_oil_data';
 const LS_VEH='nexus_vehicles';
@@ -353,9 +353,10 @@ const saveBookData=d=>lsSet(LS_BOOK,d);
         <thead><tr><th>グループ</th><th>車両名</th><th>車検有効期限</th><th>残日数</th><th>オイルデータ</th><th>操作</th></tr></thead>
         <tbody id="veh-tbody"></tbody>
       </table></div>
-      <div style="margin-top:14px;display:flex;gap:8px;align-items:center">
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn" onclick="resetVehicles()">デフォルトに戻す</button>
-        <span style="font-size:11px;color:var(--text-dim)">※初期の車両リストに戻します</span>
+        <button class="btn primary" onclick="syncVehiclesToGAS()">☁ 車両リストをGASに送信</button>
+        <span style="font-size:11px;color:var(--text-dim)">※現在の車両リストをスプレッドシートに一括保存します</span>
       </div>
     </div>
   </div>
@@ -1097,6 +1098,18 @@ async function addVehicleToGAS(name, group) {
     const json = await res.json();
     return json.status === 'ok';
   } catch(err) { return false; }
+}
+
+async function syncVehiclesToGAS() {
+  const vs = loadVehicles();
+  if (!confirm(`現在の車両リスト（${vs.length}台）をスプレッドシートに送信しますか？\n既存のデータは上書きされます。`)) return;
+  showToast('送信中...', 'success');
+  let ok = true;
+  for (const v of vs) {
+    const res = await addVehicleToGAS(v.name, v.group).catch(() => false);
+    if (!res) ok = false;
+  }
+  showToast(ok ? `✓ ${vs.length}台をGASに送信しました（全員に反映）` : '一部の送信に失敗しました', ok ? 'success' : 'error');
 }
 
 async function removeVehicleFromGAS(name) {
