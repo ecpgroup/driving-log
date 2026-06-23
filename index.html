@@ -148,7 +148,7 @@
 
 <!-- ★ここにGASのURLを貼る -->
 <script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxJmToI_Cx9NQ0Nsa4G5uMURmE5a1shZ1rJqhDXb-SoPNEnGDF4q4dkn7mIqfYEkGnjjw/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwvqpiv-zW0ABVEhOGrCBjnELuAt1mjKjJpclv5xDe9VvnowNGcbheNqLt-Hus4z6TKZw/exec';
 </script>
 
 <header class="app-header">
@@ -709,9 +709,10 @@ function getOilPayload() {
   const km       = parseFloat(document.getElementById('oil-km').value);
 
   if (!date || !arranger || !km) return 'invalid';
-  if (!oilType) return 'invalid';
+  // 種別未選択の場合は「オイルのみ」として扱う
+  const type = oilType || 'oil';
 
-  return { date, arranger, km, type: oilType, nextKm: km + OIL_INTERVAL };
+  return { date, arranger, km, type, nextKm: km + OIL_INTERVAL };
 }
 
 // ============================================================
@@ -864,7 +865,7 @@ async function submitForm() {
     } : null,
   };
 
-  // localStorageのオイルデータを更新
+  // localStorageのオイルデータを即時更新
   if (oilPayload && oilPayload !== 'invalid') {
     saveOilData(vehicle, {
       prevKm:   oilPayload.km,
@@ -873,6 +874,21 @@ async function submitForm() {
       arranger: oilPayload.arranger,
       type:     oilPayload.type,
     });
+    // GASのオイル交換管理シートに保存（単独POSTで確実に保存）
+    fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action:   'save_oil',
+        vehicle:  vehicle,
+        prevKm:   oilPayload.km,
+        nextKm:   oilPayload.nextKm,
+        date:     oilPayload.date,
+        arranger: oilPayload.arranger,
+        type:     oilPayload.type || 'oil',
+      })
+    }).then(r => r.json())
+      .then(j => { if(j.status==='ok') console.log('オイルデータ保存完了'); })
+      .catch(e => console.warn('オイルデータGAS保存失敗:', e));
   }
 
   // 送信中表示
