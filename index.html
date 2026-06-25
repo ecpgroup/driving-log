@@ -387,9 +387,15 @@ function checkConnection() {
         });
         localStorage.setItem('shared_inspection', JSON.stringify(inspData));
       }
-      // オイル交換データ
-      if (json.oil) {
-        localStorage.setItem('nexus_oil_data', JSON.stringify(json.oil));
+      // オイル交換データ（GASデータとlocalStorageをマージ）
+      if (json.oil && Object.keys(json.oil).length > 0) {
+        try {
+          const existing = JSON.parse(localStorage.getItem('nexus_oil_data') || '{}');
+          const merged = Object.assign({}, existing, json.oil);
+          localStorage.setItem('nexus_oil_data', JSON.stringify(merged));
+        } catch(e) {
+          localStorage.setItem('nexus_oil_data', JSON.stringify(json.oil));
+        }
       }
       // 車両マスタ
       if (json.vehicles && json.vehicles.length > 0) {
