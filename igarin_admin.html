@@ -1031,9 +1031,12 @@ async function loadAllSharedData() {
       lsSet(LS_BOOK, bookData);
     }
 
-    // オイル交換データ
-    if (json.oil) {
-      lsSet(LS_OIL, json.oil);
+    // オイル交換データ（GASから返る構造をそのまま保存）
+    if (json.oil && Object.keys(json.oil).length > 0) {
+      // 既存のlocalStorageデータとマージ（GASのデータを優先）
+      const existing = lsGet(LS_OIL, {});
+      const merged = Object.assign({}, existing, json.oil);
+      lsSet(LS_OIL, merged);
     }
 
     // 車両マスタ（GASにデータがある場合のみ上書き）
