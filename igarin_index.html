@@ -375,9 +375,15 @@ function checkConnection() {
         });
         localStorage.setItem('shared_inspection', JSON.stringify(inspData));
       }
-      // オイル交換データ
-      if (json.oil) {
-        localStorage.setItem('igarin_oil_data', JSON.stringify(json.oil));
+      // オイル交換データ（GASデータとlocalStorageをマージ）
+      if (json.oil && Object.keys(json.oil).length > 0) {
+        try {
+          const existing = JSON.parse(localStorage.getItem('igarin_oil_data') || '{}');
+          const merged = Object.assign({}, existing, json.oil);
+          localStorage.setItem('igarin_oil_data', JSON.stringify(merged));
+        } catch(e) {
+          localStorage.setItem('igarin_oil_data', JSON.stringify(json.oil));
+        }
       }
       // 車両マスタ
       if (json.vehicles && json.vehicles.length > 0) {
@@ -430,12 +436,21 @@ const OIL_INTERVAL = 10000; // 全車両共通 10,000km
 
 function getOilData(vehicle) {
   try {
-    const raw = localStorage.getItem('oil_' + vehicle);
-    return raw ? JSON.parse(raw) : null;
+    // GASから取得した統合データ（igarin_oil_data）から該当車両を取り出す
+    const all = JSON.parse(localStorage.getItem('igarin_oil_data') || '{}');
+    return all[vehicle] || null;
   } catch(e) { return null; }
 }
 function saveOilData(vehicle, data) {
-  localStorage.setItem('oil_' + vehicle, JSON.stringify(data));
+  try {
+    const all = JSON.parse(localStorage.getItem('igarin_oil_data') || '{}');
+    all[vehicle] = data;
+    localStorage.setItem('igarin_oil_data', JSON.stringify(all));
+  } catch(e) {
+    const obj = {};
+    obj[vehicle] = data;
+    localStorage.setItem('igarin_oil_data', JSON.stringify(obj));
+  }
 }
 
 // ============================================================
@@ -462,6 +477,21 @@ function onVehicleChange() {
 
   // GASから最新メーターを取得して前回メーター欄に自動入力
   fetchLatestMeter(vehicle);
+
+  // GASから最新のオイルデータを取得してカードを更新（全員共有データ）
+  refreshOilData(vehicle);
+}
+
+// GASから最新のオイル交換データを取得してカード再描画
+async function refreshOilData(vehicle) {
+  try {
+    const res  = await fetch(GAS_URL + '?action=get_oil');
+    const json = await res.json();
+    if (json.status === 'ok' && json.data) {
+      localStorage.setItem('igarin_oil_data', JSON.stringify(json.data));
+      renderOilCard(vehicle);
+    }
+  } catch(e) { console.warn('オイルデータ取得失敗:', e); }
 }
 
 // GASから該当車両の最新メーターを取得
